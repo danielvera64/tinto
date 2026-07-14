@@ -1,0 +1,6 @@
+# Core (all platforms)
+Pillow
+
+# The Waveshare panel driver is vendored in waveshare_epd/.
+# On the Raspberry Pi it additionally needs GPIO/SPI support:
+#   sudo apt install python3-gpiozero python3-spidev

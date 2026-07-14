@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# macOS
+.DS_Store
+._*
+
+# IDEs
+.idea/
+.vscode/
+
+# Tinto runtime state (per-device, regenerated at runtime)
+reader_state.json
+manga_recs.json
+manga_cache/
+button_config.json
+screen.png
+
+# Books: keep only the public-domain sample
+books/*
+!books/Alice in Wonderland.epub
