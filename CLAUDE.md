@@ -13,6 +13,13 @@ MUST use the timestamp format:
 e.g. `v2026.07.14-16.30` — the current date and time (24 h), zero
 padded. No semver.
 
+The release TITLE must be exactly the version string (e.g.
+`v2026.07.14-16.30`) — do not prefix it with the app name.
+
+Before tagging, update the `VERSION` file in the project root to the
+new version string and commit it — the Settings app displays it, and
+the update checker compares it against the latest GitHub release.
+
 ## Development notes
 
 - Test on macOS with the emulator: `.venv/bin/python main.py --emulate`

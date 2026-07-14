@@ -7,13 +7,30 @@ immediately to reader_state.json:
   Manga slide    minutes between manga slides: 3 / 5 / 10
   < Home         back to the home menu
 
-Navigation is debounced like the other menus.
+The current app version (from the VERSION file in the project root)
+is shown at the bottom of the screen. Navigation is debounced like
+the other menus.
 """
 
+import os
 import time
 
+from PIL import ImageDraw
+
+from .layout import load_font
 from .state import FONT_SIZES
-from .ui import Renderer
+from .ui import Renderer, BLACK, FOOTER_HEIGHT
+
+VERSION_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")
+
+
+def app_version() -> str:
+    try:
+        with open(VERSION_PATH) as f:
+            return f.read().strip() or "dev"
+    except OSError:
+        return "dev"
 
 MANGA_MINUTES = [3, 5, 10]
 MANGA_DEFAULT_MIN = 5
@@ -101,4 +118,12 @@ class SettingsApp:
         img = self.renderer.render_menu(
             "Settings", self._items(), self.selection,
             hint="UP/DOWN · HOME=change")
+        # current version, small and centered just above the footer
+        draw = ImageDraw.Draw(img)
+        font = load_font(10)
+        version = app_version()
+        w = draw.textlength(version, font=font)
+        draw.text(((self.display.width - w) // 2,
+                   self.display.height - FOOTER_HEIGHT - 16),
+                  version, font=font, fill=BLACK)
         self.display.show(img, full=full)
