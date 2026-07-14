@@ -43,6 +43,20 @@ def parse_args():
     return parser.parse_args()
 
 
+def _mark_healthy(state):
+    """Writes the health marker the managed launcher (run.sh) checks:
+    reaching this point means the new version booted successfully, so
+    no rollback is needed."""
+    from reader.updater import current_version
+    try:
+        path = os.path.join(os.path.dirname(os.path.abspath(state.path)),
+                            "healthy")
+        with open(path, "w") as f:
+            f.write(current_version())
+    except OSError:
+        pass
+
+
 def run_hardware(state, books_dir, panel, start=None):
     from reader.buttons import start_buttons, start_gesture_buttons
     from reader.display import EPDDisplay
@@ -53,6 +67,7 @@ def run_hardware(state, books_dir, panel, start=None):
     display = EPDDisplay(panel=panel)  # clears the panel on init
     shell = Shell(display, state, books_dir, start=start,
                   on_quit=lambda: events.put("quit"))
+    _mark_healthy(state)  # first frame rendered: this version works
     buttons = start_buttons(events)  # noqa: F841  (must stay referenced)
     try:
         gestures = start_gesture_buttons(events)  # noqa: F841

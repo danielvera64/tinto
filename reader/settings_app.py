@@ -5,32 +5,30 @@ immediately to reader_state.json:
 
   Font size      e-reader body text, 12..22 in steps of 2
   Manga slide    minutes between manga slides: 3 / 5 / 10
+  Update         opening Settings checks GitHub for a newer release
+                 in the background; when one exists this row becomes
+                 "Update to vX" and selecting it downloads, installs
+                 and restarts (managed layout only, see README)
   < Home         back to the home menu
 
-The current app version (from the VERSION file in the project root)
-is shown at the bottom of the screen. Navigation is debounced like
-the other menus.
+The current app version is shown at the bottom of the screen.
+Navigation is debounced like the other menus.
 """
 
-import os
+import logging
+import threading
 import time
 
 from PIL import ImageDraw
 
+from . import updater
 from .layout import load_font
 from .state import FONT_SIZES
 from .ui import Renderer, BLACK, FOOTER_HEIGHT
 
-VERSION_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")
+logger = logging.getLogger(__name__)
 
-
-def app_version() -> str:
-    try:
-        with open(VERSION_PATH) as f:
-            return f.read().strip() or "dev"
-    except OSError:
-        return "dev"
+app_version = updater.current_version  # bottom-of-screen display
 
 MANGA_MINUTES = [3, 5, 10]
 MANGA_DEFAULT_MIN = 5
@@ -45,24 +43,39 @@ def _cycle(options, current):
 
 
 class SettingsApp:
-    def __init__(self, display, state, on_home):
+    def __init__(self, display, state, on_home, on_restart=None):
         self.display = display
         self.state = state
         self.on_home = on_home
+        self.on_restart = on_restart or (lambda: None)
         self.renderer = Renderer(display.width, display.height,
                                  state.font_size)
         self.selection = 0
         self.render_due = None  # pending debounced redraw (shell polls)
+        # update-check state: idle | checking | available | none | error
+        self._update_state = "idle"
+        self._latest = None  # (tag, tarball_url) when available
 
     # ------------------------------------------------------------ values
 
     def _manga_minutes(self):
         return self.state.data.get("manga_refresh_min", MANGA_DEFAULT_MIN)
 
+    def _update_label(self):
+        return {
+            "idle": "Update: check now",
+            "checking": "Update: checking…",
+            "available": f"Update to {self._latest[0]}"
+                         if self._latest else "Update: check now",
+            "none": "Update: up to date",
+            "error": "Update: check failed",
+        }[self._update_state]
+
     def _items(self):
         return [
             f"Font size: {self.state.font_size}",
             f"Manga slide: {self._manga_minutes()} min",
+            self._update_label(),
             "< Home",
         ]
 
@@ -75,15 +88,71 @@ class SettingsApp:
             self.state.data["manga_refresh_min"] = _cycle(
                 MANGA_MINUTES, self._manga_minutes())
             self.state.save()
+        elif self.selection == 2:
+            if self._update_state == "available":
+                self._run_update()
+                return
+            self._start_check()  # manual re-check
         else:  # "< Home"
             self.on_home()
             return
         self._render()
 
+    # ------------------------------------------------------------ update
+
+    def _start_check(self):
+        """Checks GitHub for a newer release on a background thread;
+        the result re-renders via render_due (picked up by tick())."""
+        if self._update_state == "checking":
+            return
+        self._update_state = "checking"
+
+        def worker():
+            tag, url = updater.check_latest()
+            if tag is None:
+                self._update_state = "error"
+            elif updater.is_newer(tag):
+                self._latest = (tag, url)
+                self._update_state = "available"
+            else:
+                self._latest = None
+                self._update_state = "none"
+            self.render_due = time.time()  # flush on the main loop
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _run_update(self):
+        tag, url = self._latest
+        if not updater.is_managed():
+            self.display.show(self.renderer.render_message(
+                f"{tag} is available, but auto-update needs the "
+                "managed install layout — see README"), full=True)
+            self.render_due = time.time() + 5  # back to the menu
+            return
+
+        def status(msg):
+            self.display.show(self.renderer.render_message(msg),
+                              full=False)
+
+        try:
+            status(f"Updating to {tag}…")
+            updater.download_and_install(tag, url, status_cb=status)
+        except Exception as exc:
+            logger.warning("update to %s failed: %s", tag, exc)
+            self._update_state = "error"
+            self.display.show(self.renderer.render_message(
+                f"Update failed: {exc}"), full=True)
+            self.render_due = time.time() + 5
+            return
+        self.display.show(self.renderer.render_message(
+            f"{tag} installed — restarting"), full=True)
+        self.on_restart()  # exit; the launcher boots the new version
+
     # ------------------------------------------------------------ app API
 
     def activate(self):
         self.render_due = None
+        self._start_check()  # opening Settings checks for updates
         self._render(full=True)
 
     def handle(self, event):

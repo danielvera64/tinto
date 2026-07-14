@@ -26,9 +26,15 @@ import json
 import os
 import threading
 
-CONFIG_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "button_config.json")
+_APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# In the managed (auto-update) layout the calibration must live in the
+# shared data/ dir, or it would be lost on every update; a plain
+# checkout keeps it next to the code.
+CONFIG_CANDIDATES = [
+    os.path.join(os.path.dirname(os.path.dirname(_APP_DIR)),
+                 "data", "button_config.json"),
+    os.path.join(_APP_DIR, "button_config.json"),
+]
 
 KEY_PINS = {
     5: "up",
@@ -130,11 +136,13 @@ def start_buttons(event_queue):
 
 
 def _load_pull_config():
-    try:
-        with open(CONFIG_PATH) as f:
-            return {int(k): v for k, v in json.load(f).items()}
-    except (OSError, ValueError):
-        return {}
+    for path in CONFIG_CANDIDATES:
+        try:
+            with open(path) as f:
+                return {int(k): v for k, v in json.load(f).items()}
+        except (OSError, ValueError):
+            continue
+    return {}
 
 
 def start_gesture_buttons(event_queue):

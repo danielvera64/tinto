@@ -36,7 +36,8 @@ class Shell:
         data_dir = os.path.dirname(os.path.abspath(state.path)) or "."
         self.manga = MangaApp(display, state, data_dir,
                               on_home=self.show_home)
-        self.settings = SettingsApp(display, state, on_home=self.show_home)
+        self.settings = SettingsApp(display, state, on_home=self.show_home,
+                                    on_restart=self._request_quit)
         self._apps = [("E-Reader", self.reader), ("Widgets", self.widgets),
                       ("Manga", self.manga), ("Settings", self.settings)]
         self.active = None  # None = home menu
@@ -68,6 +69,11 @@ class Shell:
                               if app is target)
         self.active = target
         target.activate()
+
+    def _request_quit(self):
+        """Exit the app (systemd/the launcher restarts it)."""
+        if self.on_quit:
+            self.on_quit()
 
     def show_home(self, full: bool = True):
         self.active = None
@@ -106,8 +112,8 @@ class Shell:
             self._render_due = None  # acts on the latest selection
             self.active = self._apps[self.selection][1]
             self.active.activate()
-        elif event == "back" and self.on_quit:
-            self.on_quit()  # long BTN2 / K4 at home quits the app
+        elif event == "back":
+            self._request_quit()  # long BTN2 / K4 at home quits the app
 
     def tick(self):
         """Called by the main loop (interval given by timeout())."""
