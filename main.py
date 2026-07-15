@@ -18,6 +18,65 @@ import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+def _chainload(exec_fn=os.execve):
+    """Self-update chain-loader. If an installed release exists under
+    releases/ (created by the in-app updater), replace this process
+    with it; this checkout then only resolves the symlink, guards
+    rollback and passes the data paths. Deliberately tiny and
+    stdlib-only: this code is frozen at install time and cannot be
+    fixed by updates.
+    """
+    if os.environ.get("TINTO_CHAINLOADED"):
+        return
+    releases = os.path.join(BASE_DIR, "releases")
+    current = os.path.join(releases, "current")
+    if not os.path.islink(current):
+        return  # never updated: run this checkout normally
+
+    def read(path):
+        try:
+            with open(path) as f:
+                return f.read().strip()
+        except OSError:
+            return None
+
+    # Roll back if the last booted release never became healthy
+    last_boot = read(os.path.join(releases, "last_boot"))
+    healthy = read(os.path.join(BASE_DIR, "healthy"))
+    previous = os.path.join(releases, "previous")
+    if last_boot and last_boot != healthy and os.path.islink(previous):
+        prev_target = os.path.realpath(previous)
+        if (prev_target != os.path.realpath(current)
+                and os.path.exists(prev_target)):
+            sys.stderr.write(f"tinto: {last_boot} never became healthy; "
+                             "rolling back\n")
+            tmp = current + ".tmp"
+            if os.path.lexists(tmp):
+                os.remove(tmp)
+            os.symlink(prev_target, tmp)
+            os.replace(tmp, current)
+
+    target = os.path.realpath(current)
+    entry = os.path.join(target, "main.py")
+    if not os.path.isfile(entry):
+        return  # broken install: run this checkout
+    version = read(os.path.join(target, "VERSION")) or "unknown"
+    try:
+        with open(os.path.join(releases, "last_boot"), "w") as f:
+            f.write(version)
+    except OSError:
+        pass
+
+    # Data stays in this directory across updates
+    argv = sys.argv[1:]
+    if "--books-dir" not in argv:
+        argv += ["--books-dir", os.path.join(BASE_DIR, "books")]
+    if "--state-file" not in argv:
+        argv += ["--state-file", os.path.join(BASE_DIR, "reader_state.json")]
+    env = dict(os.environ, TINTO_CHAINLOADED="1")
+    exec_fn(sys.executable, [sys.executable, entry] + argv, env)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Tinto — e-paper reader, widgets and manga frame")
@@ -135,6 +194,7 @@ def run_png(state, books_dir, start=None):
 
 
 def main():
+    _chainload()  # hand over to an installed release, if any
     args = parse_args()
     os.makedirs(args.books_dir, exist_ok=True)
 

@@ -188,42 +188,23 @@ python3 clear_screen.py
 
 ### Auto-update
 
-Opening the Settings app checks GitHub for a newer release in the
-background; when one exists, a row appears ("Update to vX") — select
-it and Tinto downloads the release tarball, verifies it (byte-compiles
-every file, checks the bundled VERSION against the tag), atomically
-switches to it and restarts. If the new version fails to boot, the
-launcher rolls back to the previous one automatically.
+No setup needed. Opening the Settings app checks GitHub for a newer
+release in the background; when one exists, a row appears
+("Update to vX") — select it and Tinto downloads the release tarball,
+verifies it (byte-compiles every file, checks the bundled VERSION
+against the tag), installs it and restarts.
 
-Auto-update requires the **managed layout** — one directory per
-version plus shared data, driven by `run.sh`:
+The first update automatically creates a `releases/` directory next
+to the code; from then on your original install directory acts as a
+tiny launcher: it chain-loads the newest installed release, keeps all
+data (books, bookmarks, calibration) where it always was, and if a
+new version fails to boot it rolls back to the previous one on the
+next start. The clone you installed from is never modified, so a
+plain `git pull` there also still works.
 
-```
-/home/pi/tinto/
-├── run.sh                       # launcher (copy from the repo, kept
-│                                #   outside releases/ on purpose)
-├── current -> releases/vX      # the version that runs
-├── previous -> releases/vY     # rollback target
-├── releases/vX/                 # app snapshots
-└── data/                        # books/, reader_state.json,
-                                 #   manga cache, button_config.json
-```
-
-One-time setup (fresh install or migrating an existing clone):
-
-```bash
-V=$(curl -s https://api.github.com/repos/danielvera64/tinto/releases/latest | grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4)
-mkdir -p /home/pi/tinto/releases /home/pi/tinto/data/books
-curl -sL "https://api.github.com/repos/danielvera64/tinto/tarball/$V" | tar xz -C /home/pi/tinto/releases
-mv /home/pi/tinto/releases/danielvera64-tinto-* "/home/pi/tinto/releases/$V"
-ln -sfn "/home/pi/tinto/releases/$V" /home/pi/tinto/current
-cp /home/pi/tinto/current/run.sh /home/pi/tinto/ && chmod +x /home/pi/tinto/run.sh
-# migrating? move your books, reader_state.json and button_config.json
-# into /home/pi/tinto/data/
-```
-
-A plain git clone still works fine — the Settings row then tells you a
-version is available but points here instead of self-updating.
+The automatic restart after an update (and after a rollback) needs
+systemd with `Restart=always` — see below. Without systemd the app
+just exits after installing; start it again by hand.
 
 ### Run on boot (optional)
 
@@ -235,7 +216,8 @@ After=multi-user.target
 
 [Service]
 User=pi
-ExecStart=/home/pi/tinto/run.sh
+WorkingDirectory=/home/pi/e-reader
+ExecStart=/usr/bin/python3 main.py
 Restart=always
 RestartSec=3
 
@@ -247,19 +229,15 @@ WantedBy=multi-user.target
 sudo systemctl enable --now tinto.service
 ```
 
-`Restart=always` is what makes both self-update and rollback work:
-the app exits after installing an update and the launcher brings up
-the new version (or rolls back if it fails to become healthy). For a
-plain clone without the managed layout, use
-`ExecStart=/usr/bin/python3 main.py` with
-`WorkingDirectory=/home/pi/e-reader` and `Restart=on-failure` as
-before.
+`Restart=always` makes self-update and rollback hands-free (the app
+exits after installing and comes back up on the new version). It also
+means the quit gesture restarts the app rather than stopping the
+device — use `sudo systemctl stop tinto` for that.
 
 ## Project layout
 
 ```
-main.py                entry point (hardware loop / emulator / png mode)
-run.sh                 managed-layout launcher with rollback
+main.py                entry point + self-update chain-loader
 clear_screen.py        standalone panel wipe (incl. the red plane)
 test_buttons.py        standalone gesture-button tester
 reader/shell.py        home menu + event routing between apps

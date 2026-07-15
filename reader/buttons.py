@@ -27,14 +27,14 @@ import os
 import threading
 
 _APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# In the managed (auto-update) layout the calibration must live in the
-# shared data/ dir, or it would be lost on every update; a plain
-# checkout keeps it next to the code.
-CONFIG_CANDIDATES = [
-    os.path.join(os.path.dirname(os.path.dirname(_APP_DIR)),
-                 "data", "button_config.json"),
-    os.path.join(_APP_DIR, "button_config.json"),
-]
+# When chain-loaded as an installed release (<root>/releases/<v>/),
+# the calibration lives in the install root, or it would be lost on
+# every update; a plain checkout keeps it next to the code.
+CONFIG_CANDIDATES = [os.path.join(_APP_DIR, "button_config.json")]
+_parent = os.path.dirname(_APP_DIR)
+if os.path.basename(_parent) == "releases":
+    CONFIG_CANDIDATES.insert(0, os.path.join(
+        os.path.dirname(_parent), "button_config.json"))
 
 KEY_PINS = {
     5: "up",

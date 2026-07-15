@@ -1,27 +1,29 @@
-"""Self-update from GitHub releases (A/B directory scheme).
+"""Self-update from GitHub releases (self-bootstrapping A/B scheme).
 
-Managed layout on the device (created once, see README):
+No setup is required: the first in-app update creates the layout
+inside the existing install directory (the git clone / unpacked
+tarball the user started with):
 
-    <root>/run.sh                     launcher with rollback (from repo)
-    <root>/current  -> releases/<v>   symlink deciding what runs
-    <root>/previous -> releases/<v>   rollback target (set on update)
+    <root>/main.py                    permanent entry point; chain-loads
+                                      releases/current when it exists
+                                      (see _chainload in main.py)
     <root>/releases/<version>/        one directory per installed version
-    <root>/data/                      state/books/caches, shared across
-                                      versions (never inside a release)
+    <root>/releases/current  -> ...   symlink deciding what runs
+    <root>/releases/previous -> ...   rollback target
+    <root>/releases/last_boot         version the chain-loader started
+    <root>/  (everything else)        data: books/, reader_state.json,
+                                      caches -- shared across versions
 
-Update flow: check the latest GitHub release, download its tarball
-next to the existing releases, byte-compile every .py and verify the
-bundled VERSION matches the tag, atomically flip the `current`
-symlink, prune old releases (current + previous are kept), restart.
-The launcher rolls `current` back to `previous` if the app exits
-before writing the health marker (data/healthy).
+Update flow: check the latest GitHub release, download its tarball,
+byte-compile every .py and verify the bundled VERSION matches the
+tag, atomically flip `current` (the running version becomes
+`previous`; on the very first update `previous` points at the root
+checkout itself), prune older releases, restart. The chain-loader in
+the root main.py rolls back to `previous` if a release exits before
+writing the health marker.
 
 Versions are timestamp strings (vYYYY.MM.DD-HH.MM, see CLAUDE.md),
 so "newer" is a plain string comparison.
-
-When running from a plain checkout (development, or a git-clone
-install) is_managed() is False: the update check still works, but
-installing requires the managed layout.
 """
 
 import json
@@ -54,18 +56,14 @@ def current_version() -> str:
         return "dev"
 
 
-def managed_root():
-    """The managed-layout root, or None when running from a checkout."""
+def install_root():
+    """The directory that owns releases/ and the shared data: the
+    parent install dir when running as a chain-loaded release, or the
+    checkout itself (bootstrap case)."""
     parent = os.path.dirname(APP_DIR)
-    root = os.path.dirname(parent)
-    if (os.path.basename(parent) == "releases"
-            and os.path.islink(os.path.join(root, "current"))):
-        return root
-    return None
-
-
-def is_managed() -> bool:
-    return managed_root() is not None
+    if os.path.basename(parent) == "releases":
+        return os.path.dirname(parent)
+    return APP_DIR
 
 
 def check_latest(timeout=10):
@@ -127,11 +125,11 @@ def download_and_install(tag, tarball_url, status_cb=lambda msg: None):
     """Runs the full update: download -> unpack -> verify -> flip the
     `current` symlink -> prune. Raises on any failure, in which case
     the running installation is untouched. On success the new version
-    runs after the next restart."""
-    root = managed_root()
-    if root is None:
-        raise RuntimeError("not running from the managed layout")
+    runs after the next restart. The first update from a plain
+    checkout bootstraps the releases/ layout automatically."""
+    root = install_root()
     releases = os.path.join(root, "releases")
+    os.makedirs(releases, exist_ok=True)
     dest = os.path.join(releases, tag)
     if os.path.exists(dest):
         shutil.rmtree(dest)  # leftover from an aborted attempt
@@ -164,9 +162,13 @@ def download_and_install(tag, tarball_url, status_cb=lambda msg: None):
         raise
 
     status_cb("Installing…")
-    current = os.path.join(root, "current")
-    old_target = os.path.realpath(current)
-    _set_link(os.path.join(root, "previous"), old_target)
+    current = os.path.join(releases, "current")
+    # Rollback target: the currently running version -- on the very
+    # first update that is the root checkout itself (the chain-loader
+    # can boot it just like a release).
+    old_target = (os.path.realpath(current) if os.path.islink(current)
+                  else root)
+    _set_link(os.path.join(releases, "previous"), old_target)
     _set_link(current, dest)
     _prune(releases, keep={os.path.realpath(dest), old_target})
     logger.info("installed %s (previous: %s)", tag,

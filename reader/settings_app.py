@@ -8,7 +8,8 @@ immediately to reader_state.json:
   Update         opening Settings checks GitHub for a newer release
                  in the background; when one exists this row becomes
                  "Update to vX" and selecting it downloads, installs
-                 and restarts (managed layout only, see README)
+                 and restarts (the first update bootstraps the
+                 releases/ layout automatically)
   < Home         back to the home menu
 
 The current app version is shown at the bottom of the screen.
@@ -123,12 +124,6 @@ class SettingsApp:
 
     def _run_update(self):
         tag, url = self._latest
-        if not updater.is_managed():
-            self.display.show(self.renderer.render_message(
-                f"{tag} is available, but auto-update needs the "
-                "managed install layout — see README"), full=True)
-            self.render_due = time.time() + 5  # back to the menu
-            return
 
         def status(msg):
             self.display.show(self.renderer.render_message(msg),

@@ -19,6 +19,8 @@ manga_recs.json
 manga_cache/
 button_config.json
 screen.png
+releases/
+healthy
 
 # Books: keep only the public-domain sample
 books/*
