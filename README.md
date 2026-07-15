@@ -39,10 +39,13 @@ Boots to a home menu with five apps:
 - **Settings** — device options, changed with the select/HOME button
   and persisted to `reader_state.json`: e-reader font size (12–22),
   the slide interval shared by the Manga and Wallpaper apps
-  (3 / 5 / 10 minutes), the update check/trigger, and Reboot /
-  Power off rows (press twice to confirm; they run
-  `sudo -n systemctl reboot|poweroff`, so the user needs passwordless
-  sudo — the Raspberry Pi OS default).
+  (3 / 5 / 10 minutes), the update check/trigger, a WiFi row (shows
+  the current network; selecting it toggles the Tinto-Setup
+  provisioning hotspot, see "Transfer & WiFi portal"), and Reboot /
+  Power off rows (press twice to confirm; the panel is cleared and
+  slept before executing; they run `sudo -n systemctl
+  reboot|poweroff`, so the user needs passwordless sudo — the
+  Raspberry Pi OS default).
 
 ## Features
 
@@ -56,6 +59,10 @@ Boots to a home menu with five apps:
 - Four font sizes (16/18/20/22), cycled with a button
 - Controllable from three gesture buttons (push / long / double push)
   or the keyboard (`--keyboard`, works over SSH)
+- Web portal on port 8080: upload books/wallpapers and manage WiFi
+  from any browser — with a self-hosted setup hotspot when offline
+- Self-updates from GitHub releases (Settings → Update), with
+  automatic rollback if a new version fails to boot
 - Clears the panel on startup and shutdown; deep-sleeps after 60 s idle
   to protect the display
 
@@ -148,7 +155,7 @@ Long push = held ≥ 0.8 s; double push = second press within 0.4 s.
 |---|---|---|---|---|---|---|---|
 | up | selection up ° | previous page | selection up ° | previous widget | previous manga °† | previous image °† | selection up ° |
 | down | selection down ° | next page | selection down ° | next widget | next manga °† | next image °† | selection down ° |
-| select | open app | open library | open book / "< Home" | refresh widget | home | home | change value / "< Home" |
+| select | open app | open library | open book / "< Home" | refresh widget | home | home | change value / run action / "< Home" |
 | back | **quit app** | open library | return to book | home | home | home | home |
 | jump-back | first item ° | previous chapter | first item ° | — | — | — | first item ° |
 | jump-forward | last item ° | next chapter | last item ° | — | — | — | last item ° |
@@ -178,7 +185,11 @@ also returns to the home menu.
   been shown; covers/genres self-heal when the network allows; cover
   cache pruned beyond 100 MB.
 - Wallpaper: slides advance on the same interval; the folder is
-  rescanned on every render, so images can be added/removed live.
+  rescanned on every render, so images can be added/removed live
+  (e.g. via the portal); the clock overlay updates each minute.
+- WiFi: if the device boots and stays offline for about a minute, it
+  starts the Tinto-Setup hotspot so the portal remains reachable for
+  provisioning.
 
 ### Weather widget location
 
@@ -221,6 +232,31 @@ SSH session. systemd with `Restart=always` is still recommended: it
 is what brings the app back after a crash — which is also when the
 automatic rollback to the previous version kicks in.
 
+### Transfer & WiFi portal
+
+Tinto serves a small web page on port 8080 — open
+`http://<device-ip>:8080` (the IP is on the System widget) from any
+browser, phone or computer, no app needed:
+
+- **Upload**: drop files on the page — `.epub` goes to `books/`,
+  images go to `wallpapers/`; both apps pick them up without a
+  restart. Wallpapers can also be deleted from the page (with a
+  confirmation prompt).
+- **WiFi**: shows the current network, scans for available ones, and
+  joins the one you pick (needs NetworkManager, the Pi OS Bookworm
+  default).
+
+To move the device to a **new network** (no shared WiFi to reach it
+over): select the WiFi row in Settings — Tinto starts its own
+hotspot, `Tinto-Setup` (password `tintosetup`), with instructions on
+the e-paper. Join it from your phone, open `http://10.42.0.1:8080`,
+pick the new network and enter its password; the hotspot disappears
+as the device joins. If the device boots and stays offline for a
+minute, it starts the setup hotspot by itself.
+
+The portal has no authentication — it is meant for your LAN. Don't
+port-forward it.
+
 ### Run on boot (optional)
 
 ```ini
@@ -262,6 +298,8 @@ reader/manga_app.py    AniList manga recommendations art frame
 reader/wallpaper_app.py landscape slideshow of local images
 reader/settings_app.py device options menu + update check/trigger
 reader/updater.py      GitHub release check, A/B install, rollback prep
+reader/portal.py       web portal: file upload + WiFi setup (port 8080)
+reader/netman.py       nmcli wrapper: scan/connect/hotspot/watchdog
 reader/epub.py         stdlib EPUB parser (zip + OPF + XHTML → text)
 reader/layout.py       word wrap and pagination
 reader/ui.py           renders pages/menus as 1-bit PIL images

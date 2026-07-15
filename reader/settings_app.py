@@ -11,6 +11,10 @@ immediately to reader_state.json:
                  "Update to vX" and selecting it downloads, installs
                  and restarts (the first update bootstraps the
                  releases/ layout automatically)
+  WiFi           shows the current network; selecting it starts the
+                 Tinto-Setup hotspot so a phone can configure a new
+                 network via the portal (select again to reconnect to
+                 saved WiFi)
   Reboot         reboots the Pi (press twice to confirm; needs
   Power off      passwordless sudo, the Raspberry Pi OS default)
   < Home         back to the home menu
@@ -26,7 +30,7 @@ import time
 
 from PIL import ImageDraw
 
-from . import updater
+from . import netman, updater
 from .layout import load_font
 from .state import FONT_SIZES
 from .ui import Renderer, BLACK, FOOTER_HEIGHT
@@ -63,6 +67,7 @@ class SettingsApp:
         # armed power action awaiting the confirming second press:
         # ("reboot"|"poweroff", expires_at) or None
         self._confirm = None
+        self._wifi_status = "…"  # refreshed on activate/select
 
     # ------------------------------------------------------------ values
 
@@ -89,13 +94,14 @@ class SettingsApp:
             f"Font size: {self.state.font_size}",
             f"Slide interval: {self._manga_minutes()} min",
             self._update_label(),
+            f"WiFi: {self._wifi_status}",
             self._power_label("reboot", "Reboot"),
             self._power_label("poweroff", "Power off"),
             "< Home",
         ]
 
     def _change_selected(self):
-        if self.selection not in (3, 4):
+        if self.selection not in (4, 5):
             self._confirm = None  # leaving an armed power row disarms it
         if self.selection == 0:
             self.state.data["font_size"] = _cycle(FONT_SIZES,
@@ -110,14 +116,58 @@ class SettingsApp:
                 self._run_update()
                 return
             self._start_check()  # manual re-check
-        elif self.selection in (3, 4):
-            self._power_select("reboot" if self.selection == 3
+        elif self.selection == 3:
+            self._wifi_select()
+            return
+        elif self.selection in (4, 5):
+            self._power_select("reboot" if self.selection == 4
                                else "poweroff")
             return
         else:  # "< Home"
             self.on_home()
             return
         self._render()
+
+    # ------------------------------------------------------------ wifi
+
+    def _refresh_wifi(self):
+        if not netman.available():
+            self._wifi_status = "n/a"
+        elif netman.hotspot_active():
+            self._wifi_status = "setup mode"
+        else:
+            self._wifi_status = netman.current_ssid() or "offline"
+
+    def _wifi_select(self):
+        """Toggles the setup hotspot: on -> a phone can join
+        Tinto-Setup and open the portal to configure a new network;
+        off -> reconnect to saved WiFi."""
+        if not netman.available():
+            self.display.show(self.renderer.render_message(
+                "WiFi control needs NetworkManager (nmcli)"), full=True)
+            self.render_due = time.time() + 4
+            return
+        if netman.hotspot_active():
+            netman.hotspot_stop()
+            self._refresh_wifi()
+            self.display.show(self.renderer.render_message(
+                "Hotspot stopped — reconnecting to saved WiFi"),
+                full=True)
+            self.render_due = time.time() + 5
+            return
+        ok, detail = netman.hotspot_start()
+        self._refresh_wifi()
+        if ok:
+            self.display.show(self.renderer.render_message(
+                f"Join WiFi '{netman.HOTSPOT_SSID}' password "
+                f"'{netman.HOTSPOT_PASSWORD}' then open "
+                f"{netman.HOTSPOT_URL} — any button returns"),
+                full=True)
+            self.render_due = time.time() + 3600  # stays until a press
+        else:
+            self.display.show(self.renderer.render_message(
+                f"Hotspot failed: {detail[:80]}"), full=True)
+            self.render_due = time.time() + 5
 
     # ------------------------------------------------------------ power
 
@@ -134,9 +184,10 @@ class SettingsApp:
         self._render()
 
     def _execute_power(self, action):
-        verb = "Rebooting…" if action == "reboot" else "Powering off…"
-        self.display.show(self.renderer.render_message(verb), full=True)
-        self.display.sleep()  # protect the panel before the power cut
+        # Leave the panel blank: clear (white, red plane zeroed on the
+        # tri-color panel), then deep sleep before the power cut.
+        self.display.clear()
+        self.display.sleep()
         cmd = ["sudo", "-n", "systemctl", action]
         try:
             subprocess.run(cmd, check=True, capture_output=True,
@@ -198,6 +249,7 @@ class SettingsApp:
     def activate(self):
         self.render_due = None
         self._start_check()  # opening Settings checks for updates
+        self._refresh_wifi()
         self._render(full=True)
 
     def handle(self, event):

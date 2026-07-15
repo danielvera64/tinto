@@ -144,6 +144,8 @@ def run_hardware(state, books_dir, panel, start=None, keyboard_mode=False):
                   on_quit=lambda: events.put("quit"),
                   on_restart=lambda: events.put("restart"))
     _mark_healthy(state)  # first frame rendered: this version works
+    from reader import netman
+    netman.start_fallback_watchdog()  # offline -> setup hotspot
     try:
         gestures = start_gesture_buttons(events)  # noqa: F841
         print("gesture buttons active on GPIO4/27/22 "
@@ -232,6 +234,17 @@ def main():
 
     from reader.state import State
     state = State(args.state_file)
+
+    data_dir = os.path.dirname(os.path.abspath(args.state_file))
+    try:
+        from reader.portal import PortalServer
+        portal = PortalServer(args.books_dir,  # noqa: F841 (keep alive)
+                              os.path.join(data_dir, "wallpapers"))
+        portal.start()
+        print(f"portal: http://<device-ip>:{portal.port} — upload "
+              "books/wallpapers, WiFi setup")
+    except Exception as exc:
+        print(f"portal unavailable: {exc}")
 
     if args.png:
         run_png(state, args.books_dir, args.start)

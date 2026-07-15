@@ -42,6 +42,10 @@ class TkDisplay:
         self._label.configure(image=self._photo)
         self._root.title("Tinto" + (" (full refresh)" if full else ""))
 
+    def clear(self, cycles: int = 1):
+        from PIL import Image
+        self.show(Image.new("1", (self.width, self.height), 255))
+
     def sleep(self):
         pass
 

@@ -281,6 +281,9 @@ class PNGDisplay:
                               out.height * self.scale), resample=0)
         out.save(self.path)
 
+    def clear(self, cycles: int = 1):
+        self.show(Image.new("1", (self.width, self.height), 255))
+
     def sleep(self):
         pass
 
