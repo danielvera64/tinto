@@ -8,10 +8,13 @@ with the buttons at the bottom, like the e-reader — and go through
 the same contrast/sharpen/dither pipeline as the manga covers.
 
 Slides advance on the shared "Slide interval" from Settings (the same
-value the manga app uses). The last shown image persists in
-reader_state.json ("wallpaper" key). No footer or hints are drawn.
-Controls: up/down previous/next (debounced); select or back returns
-to the home menu.
+value the manga app uses). A clock (HH:MM) is overlaid bottom-center
+in red — manga-title style, white halo — and refreshes each minute
+with the fast waveform (slide changes use the full waveform); the
+panel therefore stays awake while this app is active, like the clock
+widget. The last shown image persists in reader_state.json
+("wallpaper" key). No footer or hints are drawn. Controls: up/down
+previous/next (debounced); select or back returns to the home menu.
 """
 
 import logging
@@ -37,6 +40,7 @@ class WallpaperApp:
         self.on_home = on_home
         self.dir = os.path.join(data_dir, "wallpapers")
         self._last_change = 0.0
+        self._minute = None  # "HH:MM" of the last rendered frame
         self.render_due = None  # pending debounced redraw (shell polls)
 
     # ------------------------------------------------------------ data
@@ -88,14 +92,13 @@ class WallpaperApp:
             self.render_due = None
             self._show()
             return
-        if not self._images():
-            return
-        if now - self._last_change >= self._change_every():
-            self._set_index((self.index + 1) % len(self._images()))
+        images = self._images()
+        if images and now - self._last_change >= self._change_every():
+            self._set_index((self.index + 1) % len(images))
             self._last_change = now
             self._show()
-        elif idle_for > 60 and self.render_due is None:
-            self.display.sleep()  # no-op if already asleep
+        elif time.strftime("%H:%M") != self._minute:
+            self._show(full=False)  # minute tick: fast refresh only
 
     # ------------------------------------------------------------ drawing
 
@@ -117,22 +120,37 @@ class WallpaperApp:
                 w = draw.textlength(line, font=font)
                 draw.text(((W - w) // 2, H // 4 + i * 22), line,
                           font=font, fill=BLACK)
-            self.display.show(img, full=full)
-            return
+        else:
+            path = images[self.index % len(images)]
+            try:
+                photo = Image.open(path).convert("L")
+                photo = ImageOps.fit(photo, (W, H), Image.LANCZOS)
+                photo = ImageOps.autocontrast(photo, cutoff=2)
+                photo = photo.filter(ImageFilter.UnsharpMask(
+                    radius=2, percent=180, threshold=2))
+                img.paste(photo.convert("1"), (0, 0))  # Floyd-Steinberg
+            except Exception as exc:
+                logger.warning("cannot load wallpaper %s: %s", path, exc)
+                font = load_font(12)
+                msg = f"cannot load {os.path.basename(path)[:24]}"
+                w = draw.textlength(msg, font=font)
+                draw.text(((W - w) // 2, H // 2), msg,
+                          font=font, fill=BLACK)
 
-        idx = self.index % len(images)
-        path = images[idx]
-        try:
-            photo = Image.open(path).convert("L")
-            photo = ImageOps.fit(photo, (W, H), Image.LANCZOS)
-            photo = ImageOps.autocontrast(photo, cutoff=2)
-            photo = photo.filter(ImageFilter.UnsharpMask(
-                radius=2, percent=180, threshold=2))
-            img.paste(photo.convert("1"), (0, 0))  # Floyd-Steinberg
-        except Exception as exc:
-            logger.warning("cannot load wallpaper %s: %s", path, exc)
-            font = load_font(12)
-            msg = f"cannot load {os.path.basename(path)[:24]}"
-            w = draw.textlength(msg, font=font)
-            draw.text(((W - w) // 2, H // 2), msg, font=font, fill=BLACK)
-        self.display.show(img, full=full)
+        red = Image.new("1", (W, H), WHITE)  # red overlay plane
+        self._draw_clock(img, red, W, H)
+        self.display.show(img, full=full, red_image=red)
+
+    def _draw_clock(self, img, red, W, H):
+        """HH:MM bottom-center, manga-title style: red strokes over a
+        white halo punched into the wallpaper."""
+        self._minute = time.strftime("%H:%M")
+        font = load_font(11, bold=True)  # same as the manga title
+        base_draw = ImageDraw.Draw(img)
+        red_draw = ImageDraw.Draw(red)
+        w = base_draw.textlength(self._minute, font=font)
+        x = (W - w) // 2
+        y = H - 20
+        base_draw.text((x, y), self._minute, font=font, fill=WHITE,
+                       stroke_width=2, stroke_fill=WHITE)
+        red_draw.text((x, y), self._minute, font=font, fill=BLACK)

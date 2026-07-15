@@ -31,14 +31,18 @@ Boots to a home menu with five apps:
   (reset and refetched on first run).
 
 - **Wallpaper** — a landscape slideshow of your own images from the
-  `wallpapers/` folder (created on first open, rescanned live).
+  `wallpapers/` folder (created on first open, rescanned live), with
+  a red clock overlaid bottom-center that updates every minute.
   Same dither pipeline as the manga covers, same controls (K1/K2 =
   previous/next, select/back = home), advancing on the shared slide
   interval. The last shown image persists in `reader_state.json`.
 - **Settings** — device options, changed with the select/HOME button
   and persisted to `reader_state.json`: e-reader font size (12–22),
   the slide interval shared by the Manga and Wallpaper apps
-  (3 / 5 / 10 minutes), and the update check/trigger.
+  (3 / 5 / 10 minutes), the update check/trigger, and Reboot /
+  Power off rows (press twice to confirm; they run
+  `sudo -n systemctl reboot|poweroff`, so the user needs passwordless
+  sudo — the Raspberry Pi OS default).
 
 ## Features
 

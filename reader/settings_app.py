@@ -11,6 +11,8 @@ immediately to reader_state.json:
                  "Update to vX" and selecting it downloads, installs
                  and restarts (the first update bootstraps the
                  releases/ layout automatically)
+  Reboot         reboots the Pi (press twice to confirm; needs
+  Power off      passwordless sudo, the Raspberry Pi OS default)
   < Home         back to the home menu
 
 The current app version is shown at the bottom of the screen.
@@ -18,6 +20,7 @@ Navigation is debounced like the other menus.
 """
 
 import logging
+import subprocess
 import threading
 import time
 
@@ -57,6 +60,9 @@ class SettingsApp:
         # update-check state: idle | checking | available | none | error
         self._update_state = "idle"
         self._latest = None  # (tag, tarball_url) when available
+        # armed power action awaiting the confirming second press:
+        # ("reboot"|"poweroff", expires_at) or None
+        self._confirm = None
 
     # ------------------------------------------------------------ values
 
@@ -73,15 +79,24 @@ class SettingsApp:
             "error": "Update: check failed",
         }[self._update_state]
 
+    def _power_label(self, action, label):
+        if self._confirm and self._confirm[0] == action:
+            return f"{label} — sure?"
+        return label
+
     def _items(self):
         return [
             f"Font size: {self.state.font_size}",
             f"Slide interval: {self._manga_minutes()} min",
             self._update_label(),
+            self._power_label("reboot", "Reboot"),
+            self._power_label("poweroff", "Power off"),
             "< Home",
         ]
 
     def _change_selected(self):
+        if self.selection not in (3, 4):
+            self._confirm = None  # leaving an armed power row disarms it
         if self.selection == 0:
             self.state.data["font_size"] = _cycle(FONT_SIZES,
                                                   self.state.font_size)
@@ -95,10 +110,44 @@ class SettingsApp:
                 self._run_update()
                 return
             self._start_check()  # manual re-check
+        elif self.selection in (3, 4):
+            self._power_select("reboot" if self.selection == 3
+                               else "poweroff")
+            return
         else:  # "< Home"
             self.on_home()
             return
         self._render()
+
+    # ------------------------------------------------------------ power
+
+    def _power_select(self, action):
+        """First press arms the action ('sure?'); a second press within
+        the confirmation window executes it."""
+        now = time.time()
+        if (self._confirm and self._confirm[0] == action
+                and now < self._confirm[1]):
+            self._confirm = None
+            self._execute_power(action)
+            return
+        self._confirm = (action, now + 6)
+        self._render()
+
+    def _execute_power(self, action):
+        verb = "Rebooting…" if action == "reboot" else "Powering off…"
+        self.display.show(self.renderer.render_message(verb), full=True)
+        self.display.sleep()  # protect the panel before the power cut
+        cmd = ["sudo", "-n", "systemctl", action]
+        try:
+            subprocess.run(cmd, check=True, capture_output=True,
+                           timeout=15)
+            # the system takes it from here; this process gets killed
+        except Exception as exc:
+            logger.warning("%s failed: %s", action, exc)
+            self.display.show(self.renderer.render_message(
+                f"Could not {action} — passwordless sudo needed"),
+                full=True)
+            self.render_due = time.time() + 5  # back to the menu
 
     # ------------------------------------------------------------ update
 
@@ -173,6 +222,10 @@ class SettingsApp:
             self.on_home()
 
     def tick(self, now, idle_for):
+        if self._confirm and now >= self._confirm[1]:
+            self._confirm = None  # confirmation window expired
+            self._render()
+            return
         if self.render_due is not None and now >= self.render_due:
             self._render()
         elif idle_for > 60:
