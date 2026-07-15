@@ -85,12 +85,11 @@ def parse_args():
     parser.add_argument("--png", action="store_true",
                         help="render frames to screen.png (no window)")
     parser.add_argument("--start",
-                        choices=["reader", "widgets", "manga", "settings",
-                                 "clock", "weather", "system"],
-                        help="boot directly into an app (reader/widgets/"
-                             "manga/settings) or a specific widget (clock/"
-                             "weather/system); back still returns to the "
-                             "home menu")
+                        choices=["reader", "widgets", "manga", "wallpaper",
+                                 "settings", "clock", "weather", "system"],
+                        help="boot directly into an app or a specific "
+                             "widget (clock/weather/system); back still "
+                             "returns to the home menu")
     parser.add_argument("--panel", choices=["red", "bw"], default="red",
                         help="panel type: 'red' = 2.7\" HAT (B) tri-color "
                              "(default), 'bw' = plain black/white 2.7\" V2")

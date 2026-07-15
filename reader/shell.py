@@ -15,13 +15,14 @@ from .app import ReaderApp
 from .manga_app import MangaApp
 from .settings_app import SettingsApp
 from .ui import Renderer, BLACK, WHITE, MARGIN
+from .wallpaper_app import WallpaperApp
 from .widgets_app import WidgetsApp
 
 IDLE_SLEEP_SECONDS = 60
 MENU_DEBOUNCE = 0.5  # settle time before a menu redraw, in seconds
 
 
-START_CHOICES = ["reader", "widgets", "manga", "settings",
+START_CHOICES = ["reader", "widgets", "manga", "wallpaper", "settings",
                  "clock", "weather", "system"]
 
 
@@ -38,10 +39,13 @@ class Shell:
         data_dir = os.path.dirname(os.path.abspath(state.path)) or "."
         self.manga = MangaApp(display, state, data_dir,
                               on_home=self.show_home)
+        self.wallpaper = WallpaperApp(display, state, data_dir,
+                                      on_home=self.show_home)
         self.settings = SettingsApp(display, state, on_home=self.show_home,
                                     on_restart=self._request_quit)
         self._apps = [("E-Reader", self.reader), ("Widgets", self.widgets),
-                      ("Manga", self.manga), ("Settings", self.settings)]
+                      ("Manga", self.manga), ("Wallpaper", self.wallpaper),
+                      ("Settings", self.settings)]
         self.active = None  # None = home menu
         self.selection = 0
         self._last_event = time.time()
@@ -56,7 +60,8 @@ class Shell:
         menu selection is synced so back/home navigation behaves as if
         the user had navigated here themselves."""
         apps = {"reader": self.reader, "widgets": self.widgets,
-                "manga": self.manga, "settings": self.settings}
+                "manga": self.manga, "wallpaper": self.wallpaper,
+                "settings": self.settings}
         widgets = {w.name.lower(): i
                    for i, w in enumerate(self.widgets.widgets)}
         if start in widgets:

@@ -6,7 +6,7 @@ on a Raspberry Pi, with a desktop emulator for development. Supports
 both the tri-color HAT (B) (black/white/red — the default, and the
 namesake) and the plain black/white V2 panel (`--panel bw`).
 
-Boots to a home menu with four apps:
+Boots to a home menu with five apps:
 
 - **E-Reader** — the EPUB reader (features below). Book pages render
   in landscape: rotate the device so the HAT buttons sit along the
@@ -30,9 +30,15 @@ Boots to a home menu with four apps:
   K4 = home. A Jikan-era `manga_recs.json` is migrated automatically
   (reset and refetched on first run).
 
+- **Wallpaper** — a landscape slideshow of your own images from the
+  `wallpapers/` folder (created on first open, rescanned live).
+  Same dither pipeline as the manga covers, same controls (K1/K2 =
+  previous/next, select/back = home), advancing on the shared slide
+  interval. The last shown image persists in `reader_state.json`.
 - **Settings** — device options, changed with the select/HOME button
-  and persisted to `reader_state.json`: e-reader font size (12–22)
-  and the manga slide interval (3 / 5 / 10 minutes).
+  and persisted to `reader_state.json`: e-reader font size (12–22),
+  the slide interval shared by the Manga and Wallpaper apps
+  (3 / 5 / 10 minutes), and the update check/trigger.
 
 ## Features
 
@@ -135,23 +141,24 @@ Long push = held ≥ 0.8 s; double push = second press within 0.4 s.
 
 ### Actions per screen
 
-| Event | Home menu | Reader: reading | Reader: library | Widgets | Manga | Settings |
-|---|---|---|---|---|---|---|
-| up | selection up ° | previous page | selection up ° | previous widget | previous manga °† | selection up ° |
-| down | selection down ° | next page | selection down ° | next widget | next manga °† | selection down ° |
-| select | open app | open library | open book / "< Home" | refresh widget | home | change value / "< Home" |
-| back | **quit app** | open library | return to book | home | home | home |
-| jump-back | first item ° | previous chapter | first item ° | — | — | first item ° |
-| jump-forward | last item ° | next chapter | last item ° | — | — | last item ° |
-| alt-up | — | cycle font size | — | — | — | — |
-| alt-down | — | full refresh (deghost now) | — | — | fetch 10 more now | — |
-| home | — | home menu | home menu | home menu | home menu | home menu |
+| Event | Home menu | Reader: reading | Reader: library | Widgets | Manga | Wallpaper | Settings |
+|---|---|---|---|---|---|---|---|
+| up | selection up ° | previous page | selection up ° | previous widget | previous manga °† | previous image °† | selection up ° |
+| down | selection down ° | next page | selection down ° | next widget | next manga °† | next image °† | selection down ° |
+| select | open app | open library | open book / "< Home" | refresh widget | home | home | change value / "< Home" |
+| back | **quit app** | open library | return to book | home | home | home | home |
+| jump-back | first item ° | previous chapter | first item ° | — | — | — | first item ° |
+| jump-forward | last item ° | next chapter | last item ° | — | — | — | last item ° |
+| alt-up | — | cycle font size | — | — | — | — | — |
+| alt-down | — | full refresh (deghost now) | — | — | fetch 10 more now | — | — |
+| home | — | home menu | home menu | home menu | home menu | home menu | home menu |
 
 ° debounced: rapid presses move the selection silently; the screen
 redraws once, half a second after the last press. select always acts
 on the latest selection immediately.
-† also restarts the manga app's 5-minute slide timer; next past the
-last stored manga fetches a new batch (wraps around when offline).
+† also restarts the slide timer ("Slide interval" in Settings); in
+the manga app, next past the last stored item fetches a new batch
+(wraps around when offline).
 
 quit (keyboard `q`, or back on the home menu) clears the panel,
 deep-sleeps it and exits. The library menu's last entry ("< Home")
@@ -163,9 +170,12 @@ also returns to the home menu.
 - All screens: panel deep-sleeps after 60 s idle; any input wakes it.
 - Widgets: clock updates each minute, weather every 15 min (panel
   sleeps in between), system info each minute.
-- Manga: slide advances every 5 min; new batch fetched and appended
-  when all stored items have been shown; covers/genres self-heal when
-  the network allows; cover cache pruned beyond 100 MB.
+- Manga: slides advance on the Settings "Slide interval" (default
+  5 min); new batch fetched and appended when all stored items have
+  been shown; covers/genres self-heal when the network allows; cover
+  cache pruned beyond 100 MB.
+- Wallpaper: slides advance on the same interval; the folder is
+  rescanned on every render, so images can be added/removed live.
 
 ### Weather widget location
 
@@ -244,6 +254,7 @@ reader/shell.py        home menu + event routing between apps
 reader/app.py          ReaderApp: reading + library
 reader/widgets_app.py  clock / weather / system info cards
 reader/manga_app.py    AniList manga recommendations art frame
+reader/wallpaper_app.py landscape slideshow of local images
 reader/settings_app.py device options menu + update check/trigger
 reader/updater.py      GitHub release check, A/B install, rollback prep
 reader/epub.py         stdlib EPUB parser (zip + OPF + XHTML → text)

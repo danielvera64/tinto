@@ -4,7 +4,8 @@ Rows cycle their value on "select" (the HOME button) and persist
 immediately to reader_state.json:
 
   Font size      e-reader body text, 12..22 in steps of 2
-  Manga slide    minutes between manga slides: 3 / 5 / 10
+  Slide interval minutes between manga/wallpaper slides: 3 / 5 / 10
+                 (stored as manga_refresh_min for compatibility)
   Update         opening Settings checks GitHub for a newer release
                  in the background; when one exists this row becomes
                  "Update to vX" and selecting it downloads, installs
@@ -75,7 +76,7 @@ class SettingsApp:
     def _items(self):
         return [
             f"Font size: {self.state.font_size}",
-            f"Manga slide: {self._manga_minutes()} min",
+            f"Slide interval: {self._manga_minutes()} min",
             self._update_label(),
             "< Home",
         ]
