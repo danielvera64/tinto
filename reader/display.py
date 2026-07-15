@@ -58,7 +58,7 @@ def make_bulk_epd():
             Accepts portrait (176x264) images as-is; landscape
             (264x176) images are rotated so their left edge lands at
             the top of the panel -- hold the device with the buttons
-            at the bottom, ordered KEY1..KEY4 left to right."""
+            at the bottom."""
             from PIL import Image as PILImage
             if image.size == (self.height, self.width):
                 image = image.transpose(PILImage.ROTATE_270)

@@ -90,6 +90,10 @@ def parse_args():
                         help="boot directly into an app or a specific "
                              "widget (clock/weather/system); back still "
                              "returns to the home menu")
+    parser.add_argument("--keyboard", action="store_true",
+                        help="enable terminal keyboard control (arrows/"
+                             "space nav, Enter=select, q=quit, ...); "
+                             "off by default")
     parser.add_argument("--panel", choices=["red", "bw"], default="red",
                         help="panel type: 'red' = 2.7\" HAT (B) tri-color "
                              "(default), 'bw' = plain black/white 2.7\" V2")
@@ -115,8 +119,21 @@ def _mark_healthy(state):
         pass
 
 
-def run_hardware(state, books_dir, panel, start=None):
-    from reader.buttons import start_buttons, start_gesture_buttons
+def _restart_self():
+    """Replaces this process with a fresh boot through the chain-loader
+    stub, which resolves releases/current -- so the version installed
+    by the updater starts without relying on systemd to restart us.
+    Works identically under systemd and in a plain SSH terminal."""
+    from reader.updater import install_root
+    stub = os.path.join(install_root(), "main.py")
+    env = {k: v for k, v in os.environ.items()
+           if k != "TINTO_CHAINLOADED"}
+    os.execve(sys.executable,
+              [sys.executable, stub] + sys.argv[1:], env)
+
+
+def run_hardware(state, books_dir, panel, start=None, keyboard_mode=False):
+    from reader.buttons import start_gesture_buttons
     from reader.display import EPDDisplay
     from reader.keyboard import start_keyboard
     from reader.shell import Shell
@@ -124,20 +141,27 @@ def run_hardware(state, books_dir, panel, start=None):
     events = queue.Queue()
     display = EPDDisplay(panel=panel)  # clears the panel on init
     shell = Shell(display, state, books_dir, start=start,
-                  on_quit=lambda: events.put("quit"))
+                  on_quit=lambda: events.put("quit"),
+                  on_restart=lambda: events.put("restart"))
     _mark_healthy(state)  # first frame rendered: this version works
-    buttons = start_buttons(events)  # noqa: F841  (must stay referenced)
     try:
         gestures = start_gesture_buttons(events)  # noqa: F841
         print("gesture buttons active on GPIO4/27/22 "
               "(push / long / double)")
     except Exception as exc:
-        print(f"gesture buttons unavailable ({exc}); HAT keys still work")
-    keyboard = start_keyboard(events)  # None when stdin is not a tty
-    if keyboard:
-        print("Keyboard: arrows/space nav, Enter=select, f=back, h=home, "
-              "[ ]=chapter, g=font, r=refresh, q=quit")
+        print(f"gesture buttons unavailable ({exc}); "
+              "use --keyboard or the emulator")
+    keyboard = None
+    if keyboard_mode:
+        keyboard = start_keyboard(events)  # None when stdin is not a tty
+        if keyboard:
+            print("Keyboard: arrows/space nav, Enter=select, f=back, "
+                  "h=home, [ ]=chapter, g=font, r=refresh, q=quit")
+        else:
+            print("--keyboard given but stdin is not a terminal; "
+                  "keyboard mode disabled")
 
+    restart = False
     try:
         while True:
             try:
@@ -149,13 +173,22 @@ def run_hardware(state, books_dir, panel, start=None):
                 continue
             if event == "quit":
                 break
+            if event == "restart":
+                restart = True
+                break
             shell.handle(event)
     except KeyboardInterrupt:
         pass
     finally:
         if keyboard:
-            keyboard.stop()  # restore terminal settings
-        display.close()  # clear the panel and put it to deep sleep
+            keyboard.stop()  # restore terminal BEFORE any exec
+        if restart:
+            display.sleep()  # keep the "restarting" message visible;
+            #                  the new instance clears and redraws
+        else:
+            display.close()  # clear the panel, deep sleep
+    if restart:
+        _restart_self()
 
 
 def run_png(state, books_dir, start=None):
@@ -206,7 +239,8 @@ def main():
         from reader import emulator
         emulator.run(state, args.books_dir, args.start)
     else:
-        run_hardware(state, args.books_dir, args.panel, args.start)
+        run_hardware(state, args.books_dir, args.panel, args.start,
+                     keyboard_mode=args.keyboard)
 
 
 if __name__ == "__main__":

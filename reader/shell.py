@@ -27,8 +27,10 @@ START_CHOICES = ["reader", "widgets", "manga", "wallpaper", "settings",
 
 
 class Shell:
-    def __init__(self, display, state, books_dir, start=None, on_quit=None):
+    def __init__(self, display, state, books_dir, start=None, on_quit=None,
+                 on_restart=None):
         self.on_quit = on_quit  # called by "back" on the home menu
+        self.on_restart = on_restart  # app restart (e.g. after update)
         self.display = display
         self.state = state
         self.renderer = Renderer(display.width, display.height,
@@ -42,7 +44,7 @@ class Shell:
         self.wallpaper = WallpaperApp(display, state, data_dir,
                                       on_home=self.show_home)
         self.settings = SettingsApp(display, state, on_home=self.show_home,
-                                    on_restart=self._request_quit)
+                                    on_restart=self._request_restart)
         self._apps = [("E-Reader", self.reader), ("Widgets", self.widgets),
                       ("Manga", self.manga), ("Wallpaper", self.wallpaper),
                       ("Settings", self.settings)]
@@ -78,9 +80,17 @@ class Shell:
         target.activate()
 
     def _request_quit(self):
-        """Exit the app (systemd/the launcher restarts it)."""
+        """Exit the app."""
         if self.on_quit:
             self.on_quit()
+
+    def _request_restart(self):
+        """Restart the app (self-exec through the chain-loader); falls
+        back to a plain quit when no restart hook is wired."""
+        if self.on_restart:
+            self.on_restart()
+        else:
+            self._request_quit()
 
     def show_home(self, full: bool = True):
         self.active = None
@@ -137,7 +147,7 @@ class Shell:
             self.active = self._apps[self.selection][1]
             self.active.activate()
         elif event == "back":
-            self._request_quit()  # long BTN2 / K4 at home quits the app
+            self._request_quit()  # long HOME at the home menu quits
 
     def tick(self):
         """Called by the main loop (interval given by timeout())."""

@@ -15,7 +15,7 @@ menu via the on_home callback.
 
 Reading renders in LANDSCAPE (264x176): pages are composed wide and
 the display layer rotates them onto the portrait panel (hold the
-device with the buttons at the bottom, KEY1..KEY4 left to right).
+device rotated a quarter turn counter-clockwise).
 The library menu and message screens stay PORTRAIT, like the rest of
 the apps.
 """

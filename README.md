@@ -9,13 +9,13 @@ namesake) and the plain black/white V2 panel (`--panel bw`).
 Boots to a home menu with five apps:
 
 - **E-Reader** — the EPUB reader (features below). Book pages render
-  in landscape: rotate the device so the HAT buttons sit along the
-  bottom edge, ordered KEY1..KEY4 left to right. (The library menu,
-  the home menu and the other apps remain portrait.)
+  in landscape: rotate the device a quarter turn counter-clockwise.
+  (The library menu, the home menu and the other apps remain
+  portrait.)
 - **Widgets** — full-screen cards: clock (updates every minute),
   weather (Open-Meteo, no API key), and system info (IP, uptime, CPU
-  and RAM usage, CPU temperature, disk). Flip between them with K1/K2;
-  K4 returns home.
+  and RAM usage, CPU temperature, disk). Flip between them with
+  UP/DOWN; HOME's long push returns home.
 - **Manga** — an art frame of recent manga recommendations from the
   AniList API (free GraphQL, no key; one query returns titles, genres
   and covers together). The cover fills the whole screen with the
@@ -25,16 +25,16 @@ Boots to a home menu with five apps:
   in `manga_cache/` (works offline on everything already fetched);
   when all stored items have been shown, the next batch is fetched
   and appended. The last shown manga persists in `reader_state.json`.
-  Controls (not shown on screen): K1/K2 = previous/next manga
-  (debounced; the 5-minute timer restarts on the chosen slide),
-  K4 = home. A Jikan-era `manga_recs.json` is migrated automatically
+  Controls (not shown on screen): UP/DOWN = previous/next manga
+  (debounced; the slide timer restarts on the chosen one),
+  HOME = home. A Jikan-era `manga_recs.json` is migrated automatically
   (reset and refetched on first run).
 
 - **Wallpaper** — a landscape slideshow of your own images from the
   `wallpapers/` folder (created on first open, rescanned live), with
   a red clock overlaid bottom-center that updates every minute.
-  Same dither pipeline as the manga covers, same controls (K1/K2 =
-  previous/next, select/back = home), advancing on the shared slide
+  Same dither pipeline as the manga covers, same controls (UP/DOWN =
+  previous/next, HOME = home), advancing on the shared slide
   interval. The last shown image persists in `reader_state.json`.
 - **Settings** — device options, changed with the select/HOME button
   and persisted to `reader_state.json`: e-reader font size (12–22),
@@ -54,7 +54,8 @@ Boots to a home menu with five apps:
   book on startup
 - Library menu listing everything in `books/`
 - Four font sizes (16/18/20/22), cycled with a button
-- Controllable from the HAT buttons or the keyboard (works over SSH)
+- Controllable from three gesture buttons (push / long / double push)
+  or the keyboard (`--keyboard`, works over SSH)
 - Clears the panel on startup and shutdown; deep-sleeps after 60 s idle
   to protect the display
 
@@ -95,7 +96,7 @@ On the B/W panel page turns use partial refresh (~0.3 s, no flash).
 Both panels get a full refresh every 12 page turns to clear ghosting.
 
 `--start` boots directly into an app or widget instead of the home
-menu — navigation is unchanged, K4 still gets you to the home menu:
+menu — navigation is unchanged, HOME still gets you to the home menu:
 
 ```bash
 python3 main.py --start reader    # resume the last book immediately
@@ -109,37 +110,35 @@ that still has everything else a button-press away.)
 
 ## Controls & actions
 
-Three input sources produce the same events:
+Two input sources produce the same events:
 
-- **HAT keys** — the four keys on the panel (top to bottom in
-  portrait; left to right under the screen in the reader's landscape).
-- **Gesture buttons** (optional) — three external 3-pin button
-  modules: VCC → 3.3 V, GND → GND, OUT → GPIO4 / GPIO27 / GPIO22.
-  Press polarity is auto-detected at startup, so don't hold a button
-  while the app boots. If the pins can't be claimed, the app runs
-  with HAT keys only. (`test_buttons.py` is a standalone tester for
-  them.)
-- **Keyboard** — works whenever the app runs in a terminal (e.g. over
-  SSH) and in the emulator; skipped automatically under systemd.
+- **Gesture buttons** — three external 3-pin button modules:
+  VCC → 3.3 V, GND → GND, OUT → GPIO4 / GPIO27 / GPIO22. Run
+  `python3 test_buttons.py --calibrate` once to detect the press
+  polarity; `test_buttons.py` is also a standalone gesture tester.
+- **Keyboard** — opt-in with the `--keyboard` flag when running in a
+  terminal (e.g. `python3 main.py --keyboard` over SSH); without the
+  flag, terminal keyboard input stays off. The emulator always has
+  its key bindings.
 
 ### Inputs → events
 
-On-screen hints refer to the gesture buttons by name: **UP** (GPIO4),
+On-screen hints refer to the buttons by name: **UP** (GPIO4),
 **HOME** (GPIO27), **DOWN** (GPIO22) — e.g. "UP/DOWN · HOME=open",
 "2×HOME=exit".
 
-| Event | HAT key | Gesture button | Keyboard |
-|---|---|---|---|
-| up | KEY1 (GPIO5) | BTN1 push (GPIO4) | ↑ / ← / `p` |
-| down | KEY2 (GPIO6) | BTN3 push (GPIO22) | ↓ / → / space / `n` |
-| select | KEY3 (GPIO13) | BTN2 push (GPIO27) | Enter / `m` |
-| back | KEY4 (GPIO19) | BTN2 long | Backspace / `f` |
-| jump-back | — | BTN1 long | `[` |
-| jump-forward | — | BTN3 long | `]` |
-| alt-up | — | BTN1 double | `g` |
-| alt-down | — | BTN3 double | `r` |
-| home | — | BTN2 double | `h` |
-| quit | — | via back at home | `q` (emulator: also Esc) |
+| Event | Button | Keyboard |
+|---|---|---|
+| up | UP push | ↑ / ← / `p` |
+| down | DOWN push | ↓ / → / space / `n` |
+| select | HOME push | Enter / `m` |
+| back | HOME long | Backspace / `f` |
+| jump-back | UP long | `[` |
+| jump-forward | DOWN long | `]` |
+| alt-up | UP double | `g` |
+| alt-down | DOWN double | `r` |
+| home | HOME double | `h` |
+| quit | via back at home | `q` (emulator: also Esc) |
 
 Long push = held ≥ 0.8 s; double push = second press within 0.4 s.
 
@@ -216,9 +215,11 @@ new version fails to boot it rolls back to the previous one on the
 next start. The clone you installed from is never modified, so a
 plain `git pull` there also still works.
 
-The automatic restart after an update (and after a rollback) needs
-systemd with `Restart=always` — see below. Without systemd the app
-just exits after installing; start it again by hand.
+After installing, the app restarts itself (it re-executes through the
+chain-loader), so updates work the same under systemd or in a plain
+SSH session. systemd with `Restart=always` is still recommended: it
+is what brings the app back after a crash — which is also when the
+automatic rollback to the previous version kicks in.
 
 ### Run on boot (optional)
 
@@ -230,8 +231,8 @@ After=multi-user.target
 
 [Service]
 User=pi
-WorkingDirectory=/home/pi/e-reader
-ExecStart=/usr/bin/python3 main.py
+WorkingDirectory=/home/pi/tinto
+ExecStart=/usr/bin/python3 /home/pi/tinto/main.py
 Restart=always
 RestartSec=3
 
@@ -265,7 +266,7 @@ reader/epub.py         stdlib EPUB parser (zip + OPF + XHTML → text)
 reader/layout.py       word wrap and pagination
 reader/ui.py           renders pages/menus as 1-bit PIL images
 reader/display.py      EPD driver wrapper (red-plane aware) + PNG backend
-reader/buttons.py      HAT keys + gesture buttons (push/long/double)
+reader/buttons.py      gesture buttons (push/long/double)
 reader/keyboard.py     terminal keyboard input (SSH)
 reader/state.py        bookmarks + settings (reader_state.json)
 reader/emulator.py     Tk desktop emulator

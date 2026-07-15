@@ -1,13 +1,7 @@
-"""GPIO inputs: the Waveshare HAT's four keys plus three external
-gesture buttons with push / long push / double push.
+"""GPIO input: three external gesture buttons with push / long push /
+double push.
 
-HAT keys (side of the screen), unchanged:
-  KEY1 = GPIO 5    -> "up"
-  KEY2 = GPIO 6    -> "down"
-  KEY3 = GPIO 13   -> "select"
-  KEY4 = GPIO 19   -> "back"
-
-External 3-pin button modules (VCC -> 3.3 V, GND -> GND, OUT -> pin).
+3-pin button modules (VCC -> 3.3 V, GND -> GND, OUT -> pin).
 These modules do NOT drive OUT at idle, so each pin gets an internal
 pull resistor opposing its press level; the press direction per pin
 comes from button_config.json in the project root (created by
@@ -35,13 +29,6 @@ _parent = os.path.dirname(_APP_DIR)
 if os.path.basename(_parent) == "releases":
     CONFIG_CANDIDATES.insert(0, os.path.join(
         os.path.dirname(_parent), "button_config.json"))
-
-KEY_PINS = {
-    5: "up",
-    6: "down",
-    13: "select",
-    19: "back",
-}
 
 GESTURE_PINS = {
     4: {"push": "up", "long": "jump-back", "double": "alt-up"},
@@ -120,19 +107,6 @@ class GestureDetector:
                 return
             self._pending_single = False
         self.on_event("push")
-
-
-def start_buttons(event_queue):
-    """Registers the HAT keys. Returns the Button objects (keep a
-    reference or the callbacks are garbage collected)."""
-    from gpiozero import Button
-
-    buttons = []
-    for pin, event in KEY_PINS.items():
-        btn = Button(pin, pull_up=True, bounce_time=0.05)
-        btn.when_pressed = (lambda ev: lambda: event_queue.put(ev))(event)
-        buttons.append(btn)
-    return buttons
 
 
 def _load_pull_config():

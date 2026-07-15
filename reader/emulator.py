@@ -1,10 +1,10 @@
 """Desktop emulator: shows the e-paper frame in a Tk window.
 
 Keys:
-  Left / Up      previous page (KEY1)
-  Right / Down / Space   next page (KEY2)
-  Enter / m      menu (KEY3)
-  Backspace / f  font size (KEY4)
+  Left / Up      previous page
+  Right / Down / Space   next page
+  Enter / m      select / menu
+  Backspace / f  back
   q / Escape     quit
 """
 
@@ -63,7 +63,7 @@ def run(state, books_dir: str, start=None):
 
     display = TkDisplay(root, label, Image, ImageTk)
     shell = Shell(display, state, books_dir, start=start,
-                  on_quit=root.destroy)
+                  on_quit=root.destroy, on_restart=root.destroy)
 
     def on_key(event):
         keysym = event.keysym
