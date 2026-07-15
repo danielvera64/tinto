@@ -1,4 +1,4 @@
-# Tinto
+# Tinto 🍷
 
 *Tinto* (Spanish for "red", one letter from *tinta* — ink): an EPUB
 reader and widget device for the Waveshare 2.7" e-Paper HAT (264×176)
@@ -139,7 +139,7 @@ Long push = held ≥ 0.8 s; double push = second press within 0.4 s.
 |---|---|---|---|---|---|---|
 | up | selection up ° | previous page | selection up ° | previous widget | previous manga °† | selection up ° |
 | down | selection down ° | next page | selection down ° | next widget | next manga °† | selection down ° |
-| select | open app | open library | open book / "< Home" | refresh widget | — | change value / "< Home" |
+| select | open app | open library | open book / "< Home" | refresh widget | home | change value / "< Home" |
 | back | **quit app** | open library | return to book | home | home | home |
 | jump-back | first item ° | previous chapter | first item ° | — | — | first item ° |
 | jump-forward | last item ° | next chapter | last item ° | — | — | last item ° |

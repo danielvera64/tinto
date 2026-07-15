@@ -9,10 +9,12 @@ idle. Apps return here via their on_home callback.
 import os
 import time
 
+from PIL import Image, ImageDraw
+
 from .app import ReaderApp
 from .manga_app import MangaApp
 from .settings_app import SettingsApp
-from .ui import Renderer
+from .ui import Renderer, BLACK, WHITE, MARGIN
 from .widgets_app import WidgetsApp
 
 IDLE_SLEEP_SECONDS = 60
@@ -81,7 +83,24 @@ class Shell:
         img = self.renderer.render_menu(
             "Tinto", [name for name, _ in self._apps], self.selection,
             hint="UP/DOWN · HOME=open")
-        self.display.show(img, full=full)
+        red = Image.new("1", img.size, WHITE)
+        self._draw_wine_glass(red, img)
+        self.display.show(img, full=full, red_image=red)
+
+    def _draw_wine_glass(self, red, img):
+        """A small wine glass next to the title, on the red plane (no
+        emoji glyphs exist in the panel's 1-bit font stack). Drawn
+        black-on-white in `red`, which the display renders red."""
+        measure = ImageDraw.Draw(img)
+        x = int(MARGIN + measure.textlength(
+            "Tinto", font=self.renderer.title_font)) + 9
+        y = MARGIN + 1
+        draw = ImageDraw.Draw(red)
+        # bowl (filled lower half-circle), stem, base
+        draw.pieslice((x, y - 6, x + 12, y + 6), 0, 180, fill=BLACK)
+        draw.line((x, y, x + 12, y), fill=BLACK)          # rim
+        draw.line((x + 6, y + 6, x + 6, y + 13), fill=BLACK)   # stem
+        draw.line((x + 2, y + 13, x + 10, y + 13), fill=BLACK)  # base
 
     def handle(self, event: str):
         self._last_event = time.time()

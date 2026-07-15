@@ -19,10 +19,10 @@ wraps around instead.
 
 The cover fills the whole screen with the title and genres overlaid
 near the bottom in red (the tri-color panel's red plane; black on B/W
-panels). No footer or key hints are drawn. Controls: up/down (K1/K2)
-show the previous/next manga (debounced like the menus, and the
-5-minute timer restarts on the chosen slide); back (K4) returns to
-the home menu.
+panels). No footer or key hints are drawn. Controls: up/down show the
+previous/next manga (debounced like the menus, and the slide timer
+restarts on the chosen one); select and back both return to the home
+menu (the HOME button exits on a single push).
 """
 
 import io
@@ -257,7 +257,10 @@ class MangaApp:
         self._show(full=True)
 
     def handle(self, event):
-        if event == "back":
+        if event in ("select", "back"):
+            # The manga frame has no select action, so the HOME button
+            # (push = select) exits to the home menu -- a dead single
+            # press on the button named HOME reads as a broken button.
             self.render_due = None
             self.on_home()
             return
